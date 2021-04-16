@@ -77,20 +77,27 @@ def expand_children(block, uid2block, referenced_uids, level=0):
         s = b['string']
         children = b.get('children', None)
 
-        headinglevel = b.get('heading', None)
-        if headinglevel is not None:
-            prefix = '#' * (headinglevel) + ' ' + prefix 
-
         if children is None and level == 0:
             pass
         else:
-            prefix += '* ' 
+            prefix += '- ' 
+
+        headinglevel = b.get('heading', None)
+        if headinglevel is not None:
+            prefix = prefix + '#' * (headinglevel) + ' ' 
+
 
         uid = b['uid']
         if uid in referenced_uids:
             postfix = f' ^{uid}'
         else:
             postfix = ''
+
+        todo_match = re.match('{+\[\[(DONE|TODO)\]\]}+', s)
+        if todo_match:
+            match_str = todo_match.group(0)
+            todo_text = '[ ]' if 'TODO' in match_str else '[x]'
+            s = s.replace(match_str, todo_text, 1)
 
         # b id magic
         s = prefix + replace_blockrefs(s, uid2block, referenced_uids) + postfix
@@ -109,7 +116,9 @@ j = json.load(open(sys.argv[1], mode='rt', encoding='utf-8', errors='ignore'))
 
 odir = 'md'
 ddir = 'md/daily'
+wdir = 'md/weekly_plans'
 os.makedirs(ddir, exist_ok=True)
+os.makedirs(wdir, exist_ok=True)
 
 print('Pass 1: scan all pages')
 
@@ -124,11 +133,17 @@ for page in tqdm(j):
     children = page.get('children', [])
 
     is_daily = False
+    is_weekly = False
     m = re_daily.match(title)
+    w = title[:13] == 'Weekly Plan: '
     if m:
         is_daily = True
         dt = parse(title)
         title = dt.isoformat().split('T')[0]
+    elif w:
+        is_weekly = True
+        dt = parse(title[13:])
+        title = title[:13] + dt.isoformat().split('T')[0]
 
     page = {
         'uid': None,
@@ -136,6 +151,7 @@ for page in tqdm(j):
         'created': created,
         'children': children,
         'daily': is_daily,
+        'weekly': is_weekly
         }
     uid2block.update(scan(page, page))
     pages.append(page)
@@ -153,6 +169,8 @@ for p in tqdm(pages):
     ofiln = f'{odir}/{p["title"]}.md'
     if p['daily']:
         ofiln = f'{ddir}/{p["title"]}.md'
+    elif p['weekly']:
+        ofiln = f'{wdir}/{p["title"]}.md'
 
     # hack for crazy slashes in titles 
     if '/' in title:
