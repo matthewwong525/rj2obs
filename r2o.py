@@ -93,11 +93,17 @@ def expand_children(block, uid2block, referenced_uids, level=0):
         else:
             postfix = ''
 
+        # replaces TODOs with obsidian todos
         todo_match = re.match('{+\[\[(DONE|TODO)\]\]}+', s)
         if todo_match:
             match_str = todo_match.group(0)
             todo_text = '[ ]' if 'TODO' in match_str else '[x]'
             s = s.replace(match_str, todo_text, 1)
+
+        # replace double colons with proper link
+        double_colon = s.find('::')
+        if double_colon > 0:
+            s = f'[[{s[:double_colon]}]]:{s[double_colon+2:]}'
 
         # b id magic
         s = prefix + replace_blockrefs(s, uid2block, referenced_uids) + postfix
